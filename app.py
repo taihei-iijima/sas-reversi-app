@@ -38,7 +38,11 @@ if run_res.stdout:
 st.subheader("2. SASsession 接続テスト")
 with st.spinner("SASサーバーに接続テスト中..."):
     try:
-        sas = saspy.SASsession(cfgname="oda")
+        # 設定ファイルのフルパスを明示的に指定して接続
+        cfg_file_path = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "sascfg_personal.py"
+        )
+        sas = saspy.SASsession(cfgfile=cfg_file_path, cfgname="oda")
         st.success("🎉 SASサーバーへの接続に完全に成功しました！")
         # テスト実行
         res = sas.submit("data _null_; put 'HELLO SAS CLOUD'; run;")
