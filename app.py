@@ -251,21 +251,56 @@ st.markdown(
     "SASのDATAステップとマクロによるミニマックス探索AIが裏で稼働しています。"
 )
 
+import io
+import subprocess
+import sys
+
 # --- 1. SASセッションの初期化・保持 ---
 if "sas" not in st.session_state:
     with st.spinner("SASサーバーに接続中..."):
+        # Javaの内部出力(stdout/stderr)を画面に表示するために一時キャプチャ
+        old_stdout = sys.stdout
+        old_stderr = sys.stderr
+        sys.stdout = captured_out = io.StringIO()
+        sys.stderr = captured_err = io.StringIO()
+
         try:
-            # results='TEXT' と debug=True でJavaの内部エラー出力を捕捉
-            st.session_state.sas = saspy.SASsession(cfgname="oda", results="TEXT")
+            st.session_state.sas = saspy.SASsession(cfgname="oda")
             st.session_state.log = "SAS接続に成功しました。"
             st.session_state.df_info = None
         except Exception as e:
-            st.error(f"SAS接続エラー詳細: {e}")
-            # 直前の標準エラー出力を取得して表示
-            import sys
+            sys.stdout = old_stdout
+            sys.stderr = old_stderr
 
-            st.code(str(e))
+            st.error("❌ SASプロセスの起動に失敗しました。")
+
+            # 1. Javaが裏で吐き出した本当のログを表示
+            stdout_val = captured_out.getvalue()
+            stderr_val = captured_err.getvalue()
+
+            st.subheader("📋 Java / SASPy 内部エラーログ")
+            st.code(
+                f"[STDOUT]\n{stdout_val}\n\n[STDERR]\n{stderr_val}",
+                language="text",
+            )
+
+            # 2. サーバー上のJavaバージョンを確認して表示
+            try:
+                java_ver = subprocess.run(
+                    ["java", "-version"],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                )
+                st.subheader("☕ クラウド環境の Java バージョン")
+                st.code(java_ver.stderr or java_ver.stdout, language="text")
+            except Exception as j_err:
+                st.warning(f"Javaバージョンの取得に失敗: {j_err}")
+
             st.stop()
+        finally:
+            sys.stdout = old_stdout
+            sys.stderr = old_stderr
 
 # --- 2. 盤面データ取得関数 ---
 def fetch_board():
