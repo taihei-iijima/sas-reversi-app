@@ -1,43 +1,37 @@
 import os
-import shutil
 import pandas as pd
 import saspy
 import streamlit as st
 
 
+# --- クラウド環境（Linux）向け自動初期設定 ---
 def prepare_cloud_environment():
-    # 1. GitHubリポジトリに置いたJARファイルを saspy の所定フォルダへコピー
-    jar_dir = os.path.join(
-        os.path.dirname(saspy.__file__), "java", "iomclient"
-    )
-    jars = ["sas.rutil.jar", "sas.rutil.nls.jar", "sastpj.rutil.jar"]
-    for j in jars:
-        if os.path.exists(j):
-            dest = os.path.join(jar_dir, j)
-            if not os.path.exists(dest):
-                shutil.copy(j, dest)
-
-    # 2. 認証ファイル (.authinfo) の作成
+    # 認証ファイル (.authinfo) の作成
     if "SAS_USER" in st.secrets and "SAS_PASSWORD" in st.secrets:
         u = str(st.secrets["SAS_USER"]).strip()
         p = str(st.secrets["SAS_PASSWORD"]).strip()
         content = f"oda user {u} password {p}\n"
         for fname in [".authinfo", "_authinfo"]:
             p_path = os.path.expanduser(f"~/{fname}")
-            with open(p_path, "w", encoding="utf-8") as f:
-                f.write(content)
             try:
+                with open(p_path, "w", encoding="utf-8") as f:
+                    f.write(content)
                 os.chmod(p_path, 0o600)
             except Exception:
                 pass
+    else:
+        st.error(
+            "⚠️ Streamlit Secrets に SAS_USER または SAS_PASSWORD が設定されていません。"
+        )
+        st.stop()
 
 
 prepare_cloud_environment()
 
 st.set_page_config(page_title="SAS Othello AI Cockpit", layout="wide")
-# (これ以降のCSSやコードはそのまま)
+
 # ==============================================================
-# オセロ盤面のカスタムCSS（列番号・行番号 完全中央同期 ＆ 正方形立体石）
+# オセロ盤面のカスタムCSS（行・列番号完全同期 ＆ 黒背景 ＆ 正方形立体石）
 # ==============================================================
 st.markdown(
     """
@@ -52,116 +46,126 @@ div[data-testid="stVerticalBlock"] > div {
     gap: 0px !important;
 }
 div[data-testid="stHorizontalBlock"] {
-    display: flex !important;
-    align-items: stretch !important;
     gap: 0px !important;
     margin: 0px !important;
     padding: 0px !important;
+}
+div[data-testid="column"] {
+    padding: 0px !important;
+    margin: 0px !important;
+    min-width: 0px !important;
 }
 div.stButton {
     margin: 0px !important;
     padding: 0px !important;
     width: 100% !important;
-    height: 100% !important;
+    position: relative !important;
+    overflow: visible !important;
 }
 
 /* =======================================================
-   2. ★ 盤面・列番号行の9カラム幅を完全固定（位置ズレ根本解消） ★
+   2. 盤面外枠の番号用マージン確保（上32px・左32px）
 ======================================================= */
-/* 9つのカラムを持つ行（上段の列番号 ＋ 盤面8行）のみを特定して幅を完全同期 */
-div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(9)) {
-    width: 100% !important;
+/* 1行目（Y=1）のマス：上に列番号用の余白を作る */
+div[class*="_sq_"][class*="_1_1"],
+div[class*="_sq_"][class*="_2_1"],
+div[class*="_sq_"][class*="_3_1"],
+div[class*="_sq_"][class*="_4_1"],
+div[class*="_sq_"][class*="_5_1"],
+div[class*="_sq_"][class*="_6_1"],
+div[class*="_sq_"][class*="_7_1"],
+div[class*="_sq_"][class*="_8_1"] {
+    margin-top: 32px !important;
 }
 
-/* 左端カラム（角の空白セル ＆ 行番号1〜8）：幅 6.98% に完全固定 */
-div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(9)) > div[data-testid="column"]:first-child {
-    flex: 0 0 6.98% !important;
-    width: 6.98% !important;
-    max-width: 6.98% !important;
-    min-width: 6.98% !important;
-    padding: 0px !important;
-    margin: 0px !important;
-}
-
-/* 2〜9列目カラム（列番号1〜8 ＆ オセロ盤マス）：幅 11.6275% に完全固定 */
-div[data-testid="stHorizontalBlock"]:has(> div[data-testid="column"]:nth-child(9)) > div[data-testid="column"]:not(:first-child) {
-    flex: 0 0 11.6275% !important;
-    width: 11.6275% !important;
-    max-width: 11.6275% !important;
-    min-width: 11.6275% !important;
-    padding: 0px !important;
-    margin: 0px !important;
+/* 1列目（X=1）のマス：左に行番号用の余白を作る */
+div[class*="_sq_"][class*="_1_1"],
+div[class*="_sq_"][class*="_1_2"],
+div[class*="_sq_"][class*="_1_3"],
+div[class*="_sq_"][class*="_1_4"],
+div[class*="_sq_"][class*="_1_5"],
+div[class*="_sq_"][class*="_1_6"],
+div[class*="_sq_"][class*="_1_7"],
+div[class*="_sq_"][class*="_1_8"] {
+    margin-left: 32px !important;
 }
 
 /* =======================================================
-   3. 行番号・列番号（背景を完全な黒・透明にし、中央配置）
+   3. 列番号（1〜8）：1行目マスの真上に中央配置（黒背景）
 ======================================================= */
-div[class*="st-key-col_num_"] button,
-div[class*="st-key-col_num_"] button:disabled,
-div[class*="st-key-row_num_"] button,
-div[class*="st-key-row_num_"] button:disabled,
-div[class*="st-key-corner_cell"] button,
-div[class*="st-key-corner_cell"] button:disabled {
-    background: transparent !important;
-    background-color: transparent !important;
-    border: none !important;
-    box-shadow: none !important;
-    outline: none !important;
-    border-radius: 0px !important;
-    opacity: 1.0 !important;
-    cursor: default !important;
+/* 列番号の共通スタイル */
+div[class*="_sq_"][class*="_1_1"] button::before,
+div[class*="_sq_"][class*="_2_1"] button::before,
+div[class*="_sq_"][class*="_3_1"] button::before,
+div[class*="_sq_"][class*="_4_1"] button::before,
+div[class*="_sq_"][class*="_5_1"] button::before,
+div[class*="_sq_"][class*="_6_1"] button::before,
+div[class*="_sq_"][class*="_7_1"] button::before,
+div[class*="_sq_"][class*="_8_1"] button::before {
+    position: absolute !important;
+    top: -28px !important;
+    left: 0px !important;
     width: 100% !important;
-    padding: 0px !important;
-    margin: 0px !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
     text-align: center !important;
-}
-
-/* 数字フォント（白く鮮明にし、余計なマージンを排除して完全中央揃え） */
-div[class*="st-key-col_num_"] button *,
-div[class*="st-key-row_num_"] button * {
-    color: #e0e0e0 !important;
     font-size: 16px !important;
     font-weight: bold !important;
+    color: #e0e0e0 !important;
     background: transparent !important;
-    opacity: 1.0 !important;
+    pointer-events: none !important;
     line-height: 1 !important;
-    margin: 0px auto !important;
-    padding: 0px !important;
-    text-align: center !important;
 }
 
-/* 上段：列番号（1〜8）上部マージンを確保 */
-div[class*="st-key-col_num_"],
-div[class*="st-key-corner_cell"] {
-    height: 36px !important;
-    margin-top: 14px !important;
-    margin-bottom: 2px !important;
-}
-div[class*="st-key-col_num_"] button,
-div[class*="st-key-corner_cell"] button {
-    height: 36px !important;
-    min-height: 36px !important;
-}
-
-/* 左端：行番号（1〜8）マスの高さに同期して中央配置 */
-div[class*="st-key-row_num_"] {
-    height: 100% !important;
-}
-div[class*="st-key-row_num_"] button {
-    height: 100% !important;
-    min-height: 100% !important;
-}
+/* 各列の番号割り当て */
+div[class*="_sq_"][class*="_1_1"] button::before { content: "1" !important; }
+div[class*="_sq_"][class*="_2_1"] button::before { content: "2" !important; }
+div[class*="_sq_"][class*="_3_1"] button::before { content: "3" !important; }
+div[class*="_sq_"][class*="_4_1"] button::before { content: "4" !important; }
+div[class*="_sq_"][class*="_5_1"] button::before { content: "5" !important; }
+div[class*="_sq_"][class*="_6_1"] button::before { content: "6" !important; }
+div[class*="_sq_"][class*="_7_1"] button::before { content: "7" !important; }
+div[class*="_sq_"][class*="_8_1"] button::before { content: "8" !important; }
 
 /* =======================================================
-   4. オセロ盤のマス目（盤面ボタンのみに緑色・黒枠線を適用）
+   4. 行番号（1〜8）：左端マスの左外側に縦中央配置（黒背景）
 ======================================================= */
-div[class*="st-key-b_"] button,
-div[class*="st-key-w_"] button,
-div[class*="st-key-x_"] button,
-div[class*="st-key-e_"] button {
+/* 行番号の共通スタイル */
+div[class*="_sq_"][class*="_1_1"]::before,
+div[class*="_sq_"][class*="_1_2"]::before,
+div[class*="_sq_"][class*="_1_3"]::before,
+div[class*="_sq_"][class*="_1_4"]::before,
+div[class*="_sq_"][class*="_1_5"]::before,
+div[class*="_sq_"][class*="_1_6"]::before,
+div[class*="_sq_"][class*="_1_7"]::before,
+div[class*="_sq_"][class*="_1_8"]::before {
+    position: absolute !important;
+    left: -26px !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    width: 20px !important;
+    text-align: center !important;
+    font-size: 16px !important;
+    font-weight: bold !important;
+    color: #e0e0e0 !important;
+    background: transparent !important;
+    pointer-events: none !important;
+    line-height: 1 !important;
+    z-index: 10 !important;
+}
+
+/* 各行の番号割り当て */
+div[class*="_sq_"][class*="_1_1"]::before { content: "1" !important; }
+div[class*="_sq_"][class*="_1_2"]::before { content: "2" !important; }
+div[class*="_sq_"][class*="_1_3"]::before { content: "3" !important; }
+div[class*="_sq_"][class*="_1_4"]::before { content: "4" !important; }
+div[class*="_sq_"][class*="_1_5"]::before { content: "5" !important; }
+div[class*="_sq_"][class*="_1_6"]::before { content: "6" !important; }
+div[class*="_sq_"][class*="_1_7"]::before { content: "7" !important; }
+div[class*="_sq_"][class*="_1_8"]::before { content: "8" !important; }
+
+/* =======================================================
+   5. オセロ盤マス目（完全正方形・深緑・黒枠線）
+======================================================= */
+div[class*="_sq_"] button {
     background-color: #1b6d2b !important; /* オセロ盤の深緑 */
     border: 1px solid #0a2e12 !important; /* マスの境界線 */
     border-radius: 0px !important;
@@ -175,28 +179,25 @@ div[class*="st-key-e_"] button {
     align-items: center !important;
     justify-content: center !important;
     position: relative !important;
+    overflow: visible !important;
 }
 
-div[class*="st-key-b_"] button:disabled,
-div[class*="st-key-w_"] button:disabled,
-div[class*="st-key-e_"] button:disabled {
+div[class*="_sq_"] button:disabled {
     background-color: #1b6d2b !important;
     opacity: 1.0 !important;
     cursor: default !important;
 }
 
-/* 元の文字は非表示にしてCSSで石を描画 */
-div[class*="st-key-b_"] button *,
-div[class*="st-key-w_"] button *,
-div[class*="st-key-e_"] button * {
+/* ボタン内の元の文字は非表示にしてCSSで石を描画 */
+div[class*="_sq_"] button * {
     display: none !important;
 }
 
 /* =======================================================
-   5. オセロ石のリアル描画（正方形マスに連動した美しい円）
+   6. オセロ石のリアル描画（正方形マスに連動した美しい円）
 ======================================================= */
-div[class*="st-key-b_"] button::after,
-div[class*="st-key-w_"] button::after {
+div[class*="_sq_b_"] button::after,
+div[class*="_sq_w_"] button::after {
     content: "" !important;
     display: block !important;
     width: 76% !important;
@@ -205,34 +206,38 @@ div[class*="st-key-w_"] button::after {
 }
 
 /* ★ 黒石：透け感ゼロの漆黒（ハイライト ＋ 強い影） ★ */
-div[class*="st-key-b_"] button::after {
+div[class*="_sq_b_"] button::after {
     background: radial-gradient(circle at 32% 32%, #444444 0%, #151515 45%, #000000 100%) !important;
     box-shadow: 2px 3px 5px rgba(0, 0, 0, 0.85) !important;
     border: 1px solid #000000 !important;
 }
 
 /* ★ 白石：透け感ゼロの純白（陶器のような立体光沢 ＋ 影） ★ */
-div[class*="st-key-w_"] button::after {
+div[class*="_sq_w_"] button::after {
     background: radial-gradient(circle at 32% 32%, #ffffff 0%, #f0f0f0 60%, #cfcfcf 100%) !important;
     box-shadow: 2px 3px 5px rgba(0, 0, 0, 0.65) !important;
     border: 1px solid #bfbfbf !important;
 }
 
 /* =======================================================
-   6. 着手可能マス（×印）
+   7. 着手可能マス（×印）
 ======================================================= */
-div[class*="st-key-x_"] button {
+div[class*="_sq_x_"] button {
     background-color: #1e7a33 !important;
     cursor: pointer !important;
     border: 1px solid #0a2e12 !important;
 }
-div[class*="st-key-x_"] button * {
+div[class*="_sq_x_"] button::after {
+    content: "✖" !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
     font-size: 26px !important;
     color: #4a1515 !important; /* 眩しくないダークワインレッド */
     font-weight: 900 !important;
     line-height: 1 !important;
 }
-div[class*="st-key-x_"] button:hover {
+div[class*="_sq_x_"] button:hover {
     background-color: #249641 !important;
 }
 </style>
@@ -249,10 +254,25 @@ st.markdown(
 # --- 1. SASセッションの初期化・保持 ---
 if "sas" not in st.session_state:
     with st.spinner("SASサーバーに接続中..."):
-        st.session_state.sas = saspy.SASsession(cfgname="oda")
+        # リポジトリ直下の暗号化JARファイルを直接クラスパスに渡す
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        jar_names = ["sas.rutil.jar", "sas.rutil.nls.jar", "sastpj.rutil.jar"]
+        extra_jars = [
+            os.path.join(current_dir, j)
+            for j in jar_names
+            if os.path.exists(os.path.join(current_dir, j))
+        ]
+        cp_arg = os.pathsep.join(extra_jars) if extra_jars else None
+
+        if cp_arg:
+            st.session_state.sas = saspy.SASsession(
+                cfgname="oda", classpath=cp_arg
+            )
+        else:
+            st.session_state.sas = saspy.SASsession(cfgname="oda")
+
         st.session_state.log = "ここにSASの実行ログが表示されます。"
         st.session_state.df_info = None
-
 
 # --- 2. 盤面データ取得関数 ---
 def fetch_board():
