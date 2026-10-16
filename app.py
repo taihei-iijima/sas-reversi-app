@@ -254,23 +254,8 @@ st.markdown(
 # --- 1. SASセッションの初期化・保持 ---
 if "sas" not in st.session_state:
     with st.spinner("SASサーバーに接続中..."):
-        # リポジトリ直下の暗号化JARファイルを直接クラスパスに渡す
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        jar_names = ["sas.rutil.jar", "sas.rutil.nls.jar", "sastpj.rutil.jar"]
-        extra_jars = [
-            os.path.join(current_dir, j)
-            for j in jar_names
-            if os.path.exists(os.path.join(current_dir, j))
-        ]
-        cp_arg = os.pathsep.join(extra_jars) if extra_jars else None
-
-        if cp_arg:
-            st.session_state.sas = saspy.SASsession(
-                cfgname="oda", classpath=cp_arg
-            )
-        else:
-            st.session_state.sas = saspy.SASsession(cfgname="oda")
-
+        # sascfg_personal.py に完全なクラスパスが設定されたため、シンプルに呼び出すだけでOK
+        st.session_state.sas = saspy.SASsession(cfgname="oda")
         st.session_state.log = "ここにSASの実行ログが表示されます。"
         st.session_state.df_info = None
 
