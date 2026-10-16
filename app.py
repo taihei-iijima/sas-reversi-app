@@ -1,52 +1,41 @@
 import os
-import urllib.request
+import shutil
 import pandas as pd
 import saspy
 import streamlit as st
 
 
-# --- クラウド環境（Linux）向け自動初期設定 ---
 def prepare_cloud_environment():
-    # 1. 暗号化通信用JARファイルが存在しない場合、自動ダウンロード
-    jar_dir = os.path.join(os.path.dirname(saspy.__file__), "java", "iomclient")
+    # 1. GitHubリポジトリに置いたJARファイルを saspy の所定フォルダへコピー
+    jar_dir = os.path.join(
+        os.path.dirname(saspy.__file__), "java", "iomclient"
+    )
     jars = ["sas.rutil.jar", "sas.rutil.nls.jar", "sastpj.rutil.jar"]
     for j in jars:
-        j_path = os.path.join(jar_dir, j)
-        if not os.path.exists(j_path):
-            try:
-                url = f"http://ftp.sas.com/techsup/download/base/{j}"
-                urllib.request.urlretrieve(url, j_path)
-            except Exception as e:
-                print(f"JAR download error for {j}: {e}")
+        if os.path.exists(j):
+            dest = os.path.join(jar_dir, j)
+            if not os.path.exists(dest):
+                shutil.copy(j, dest)
 
-    # 2. クラウドの秘密設定(Secrets)から認証ファイルを生成
-    # ※ Linux環境用に .authinfo (ドット)、Windows用に _authinfo の両方を作成
+    # 2. 認証ファイル (.authinfo) の作成
     if "SAS_USER" in st.secrets and "SAS_PASSWORD" in st.secrets:
-        sas_user = str(st.secrets["SAS_USER"]).strip()
-        sas_pw = str(st.secrets["SAS_PASSWORD"]).strip()
-        auth_content = f"oda user {sas_user} password {sas_pw}\n"
-
-        for filename in [".authinfo", "_authinfo"]:
-            path = os.path.expanduser(f"~/{filename}")
-            with open(path, "w", encoding="utf-8") as f:
-                f.write(auth_content)
-            # Linux必須: 権限を「所有者のみ読み書き可(600)」に設定
+        u = str(st.secrets["SAS_USER"]).strip()
+        p = str(st.secrets["SAS_PASSWORD"]).strip()
+        content = f"oda user {u} password {p}\n"
+        for fname in [".authinfo", "_authinfo"]:
+            p_path = os.path.expanduser(f"~/{fname}")
+            with open(p_path, "w", encoding="utf-8") as f:
+                f.write(content)
             try:
-                os.chmod(path, 0o600)
+                os.chmod(p_path, 0o600)
             except Exception:
                 pass
-    else:
-        st.error(
-            "⚠️ Streamlit Secrets に SAS_USER または SAS_PASSWORD が設定されていません！"
-        )
-        st.info("右下の Manage app → 3点リーダー → Settings → Secrets を確認してください。")
-        st.stop()
 
 
 prepare_cloud_environment()
 
 st.set_page_config(page_title="SAS Othello AI Cockpit", layout="wide")
-# （これ以降のコードはそのまま）
+# (これ以降のCSSやコードはそのまま)
 # ==============================================================
 # オセロ盤面のカスタムCSS（列番号・行番号 完全中央同期 ＆ 正方形立体石）
 # ==============================================================
