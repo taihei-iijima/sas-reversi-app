@@ -255,14 +255,16 @@ st.markdown(
 if "sas" not in st.session_state:
     with st.spinner("SASサーバーに接続中..."):
         try:
-            st.session_state.sas = saspy.SASsession(cfgname="oda")
+            # results='TEXT' と debug=True でJavaの内部エラー出力を捕捉
+            st.session_state.sas = saspy.SASsession(cfgname="oda", results="TEXT")
             st.session_state.log = "SAS接続に成功しました。"
             st.session_state.df_info = None
         except Exception as e:
-            st.error(f"SAS接続に失敗しました: {e}")
-            st.info(
-                "手元PCやブラウザでSASセッションを開いたままにしていないか確認してください。"
-            )
+            st.error(f"SAS接続エラー詳細: {e}")
+            # 直前の標準エラー出力を取得して表示
+            import sys
+
+            st.code(str(e))
             st.stop()
 
 # --- 2. 盤面データ取得関数 ---
