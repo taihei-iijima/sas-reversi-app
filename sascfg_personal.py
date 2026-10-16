@@ -1,8 +1,12 @@
 import glob
 import os
+import shutil
 import saspy
 
-# 1. saspy/java フォルダ配下にある全JAR（saspyiom.jar、CORBA、通信用等）を再帰的に全取得
+# Linux環境で確実にJavaを起動するため、絶対パス（/usr/bin/java 等）を自動取得
+_java_cmd = shutil.which("java") or "/usr/bin/java"
+
+# 1. saspy/java フォルダ配下にある全JARファイルを再帰的に取得
 _saspy_dir = os.path.dirname(saspy.__file__)
 _java_dir = os.path.join(_saspy_dir, "java")
 _default_jars = glob.glob(
@@ -25,7 +29,7 @@ _full_classpath = os.pathsep.join(_all_jars)
 SAS_config_names = ["oda"]
 
 oda = {
-    "java": "java",
+    "java": _java_cmd,
     "iomhost": "odaws01-usw2.oda.sas.com",
     "iomport": 8591,
     "authkey": "oda",
