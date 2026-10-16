@@ -254,10 +254,16 @@ st.markdown(
 # --- 1. SASセッションの初期化・保持 ---
 if "sas" not in st.session_state:
     with st.spinner("SASサーバーに接続中..."):
-        # sascfg_personal.py に完全なクラスパスが設定されたため、シンプルに呼び出すだけでOK
-        st.session_state.sas = saspy.SASsession(cfgname="oda")
-        st.session_state.log = "ここにSASの実行ログが表示されます。"
-        st.session_state.df_info = None
+        try:
+            st.session_state.sas = saspy.SASsession(cfgname="oda")
+            st.session_state.log = "SAS接続に成功しました。"
+            st.session_state.df_info = None
+        except Exception as e:
+            st.error(f"SAS接続に失敗しました: {e}")
+            st.info(
+                "手元PCやブラウザでSASセッションを開いたままにしていないか確認してください。"
+            )
+            st.stop()
 
 # --- 2. 盤面データ取得関数 ---
 def fetch_board():
