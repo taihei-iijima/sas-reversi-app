@@ -16,30 +16,37 @@ def prepare_cloud_environment():
             try:
                 url = f"http://ftp.sas.com/techsup/download/base/{j}"
                 urllib.request.urlretrieve(url, j_path)
+            except Exception as e:
+                print(f"JAR download error for {j}: {e}")
+
+    # 2. クラウドの秘密設定(Secrets)から認証ファイルを生成
+    # ※ Linux環境用に .authinfo (ドット)、Windows用に _authinfo の両方を作成
+    if "SAS_USER" in st.secrets and "SAS_PASSWORD" in st.secrets:
+        sas_user = str(st.secrets["SAS_USER"]).strip()
+        sas_pw = str(st.secrets["SAS_PASSWORD"]).strip()
+        auth_content = f"oda user {sas_user} password {sas_pw}\n"
+
+        for filename in [".authinfo", "_authinfo"]:
+            path = os.path.expanduser(f"~/{filename}")
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(auth_content)
+            # Linux必須: 権限を「所有者のみ読み書き可(600)」に設定
+            try:
+                os.chmod(path, 0o600)
             except Exception:
                 pass
-
-    # 2. クラウドの秘密設定(Secrets)から _authinfo を自動生成
-    auth_path = os.path.expanduser("~/_authinfo")
-    if (
-        not os.path.exists(auth_path)
-        and "SAS_USER" in st.secrets
-        and "SAS_PASSWORD" in st.secrets
-    ):
-        with open(auth_path, "w") as f:
-            f.write(
-                f"oda user {st.secrets['SAS_USER']} password {st.secrets['SAS_PASSWORD']}\n"
-            )
-        try:
-            os.chmod(auth_path, 0o600)
-        except Exception:
-            pass
+    else:
+        st.error(
+            "⚠️ Streamlit Secrets に SAS_USER または SAS_PASSWORD が設定されていません！"
+        )
+        st.info("右下の Manage app → 3点リーダー → Settings → Secrets を確認してください。")
+        st.stop()
 
 
 prepare_cloud_environment()
 
-st.set_page_config(page_title="SAS Reversi AI Cockpit", layout="wide")
-
+st.set_page_config(page_title="SAS Othello AI Cockpit", layout="wide")
+# （これ以降のコードはそのまま）
 # ==============================================================
 # オセロ盤面のカスタムCSS（列番号・行番号 完全中央同期 ＆ 正方形立体石）
 # ==============================================================
