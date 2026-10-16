@@ -1,75 +1,55 @@
+import io
+import logging
 import os
-import socket
 import subprocess
 import sascfg_personal
+import saspy
 import streamlit as st
 
-st.set_page_config(page_title="SAS 接続診断", layout="wide")
-st.title("🔍 SAS Cloud 接続診断")
+st.set_page_config(page_title="SAS 接続診断 (詳細版)", layout="wide")
+st.title("🔍 SAS Cloud 接続診断 (詳細ログ)")
 
-# 1. 認証情報 (.authinfo) のチェック
-# まず Secrets から生成を試みる
-if "SAS_USER" in st.secrets and "SAS_PASSWORD" in st.secrets:
-    u = str(st.secrets["SAS_USER"]).strip()
-    p = str(st.secrets["SAS_PASSWORD"]).strip()
-    content = f"oda user {u} password {p}\n"
-    for fname in [".authinfo", "_authinfo"]:
-        p_path = os.path.expanduser(f"~/{fname}")
-        try:
-            with open(p_path, "w", encoding="utf-8") as f:
-                f.write(content)
-            os.chmod(p_path, 0o600)
-        except Exception:
-            pass
+# --- 1. SASPy の詳細デバッグログを画面に出力する設定 ---
+log_stream = io.StringIO()
+handler = logging.StreamHandler(log_stream)
+handler.setLevel(logging.DEBUG)
+formatter = logging.Formatter("%(levelname)s: %(message)s")
+handler.setFormatter(formatter)
 
-auth_path = os.path.expanduser("~/.authinfo")
-st.subheader("1. 認証ファイル (`~/.authinfo`)")
-if os.path.exists(auth_path):
-    st.success("✅ `~/.authinfo` は正常に作成・配置されています。")
-else:
-    st.error("❌ `~/.authinfo` が存在しません。Streamlit Secrets を確認してください。")
+sas_logger = logging.getLogger("saspy")
+sas_logger.setLevel(logging.DEBUG)
+sas_logger.addHandler(handler)
 
-# 2. ネットワーク疎通テスト (ポート 8591)
-host = sascfg_personal.oda.get("iomhost", "odaws01-usw2.oda.sas.com")
-port = sascfg_personal.oda.get("iomport", 8591)
-st.subheader(f"2. ネットワーク疎通テスト ({host}:{port})")
-try:
-    sock = socket.create_connection((host, port), timeout=5)
-    sock.close()
-    st.success(
-        f"✅ {host}:{port} に接続できました（ファイアウォールは通過しています）。"
-    )
-except Exception as net_err:
-    st.error(
-        f"❌ {host}:{port} への通信が遮断されています: {net_err}\n"
-        "※ ODAサーバー側でクラウド事業者のIPアドレスがブロックされている可能性があります。"
-    )
-
-# 3. クラスパス・JARファイルの検証
+# --- 2. Java プロセス直接起動テスト (pyiom.saspy2j) ---
+st.subheader("1. Java メインクラス直接実行テスト (`pyiom.saspy2j`)")
 cp = sascfg_personal.oda.get("classpath", "")
-jar_list = cp.split(os.pathsep) if cp else []
-st.subheader(f"3. JARファイルの検出 (合計 {len(jar_list)} 個)")
-missing = [j for j in jar_list if not os.path.exists(j)]
-if not cp:
-    st.error("❌ クラスパスが空です。`sascfg_personal.py` を確認してください。")
-elif missing:
-    st.error(f"❌ 以下のJARファイルが見つかりません:\n{missing}")
-else:
-    st.success("✅ クラスパスに指定された全JARファイルが正常に存在します。")
-
-# 4. Java プロセス直接起動テスト (pyiom.saspyiom)
-st.subheader("4. Java プロセス直接起動テスト")
-cmd = ["java", "-classpath", cp, "pyiom.saspyiom"]
+cmd = ["java", "-classpath", cp, "pyiom.saspy2j", "-help"]
 run_res = subprocess.run(
     cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
 )
 
-st.write(f"終了コード (Return Code): `{run_res.returncode}`")
+st.write(f"終了コード: `{run_res.returncode}`")
 if run_res.stderr:
-    st.error("⚠️ Java が以下のエラーを出力しました:")
-    st.code(run_res.stderr, language="text")
+    st.code(f"[STDERR]\n{run_res.stderr}", language="text")
 if run_res.stdout:
-    st.info("ℹ️ Java の標準出力:")
-    st.code(run_res.stdout, language="text")
-if not run_res.stderr and not run_res.stdout:
-    st.warning("Javaからの出力はありませんでした。")
+    st.code(f"[STDOUT]\n{run_res.stdout}", language="text")
+
+# --- 3. SASsession 接続テスト ---
+st.subheader("2. SASsession 接続テスト")
+with st.spinner("SASサーバーに接続テスト中..."):
+    try:
+        sas = saspy.SASsession(cfgname="oda")
+        st.success("🎉 SASサーバーへの接続に完全に成功しました！")
+        # テスト実行
+        res = sas.submit("data _null_; put 'HELLO SAS CLOUD'; run;")
+        st.code(res["LOG"], language="sas")
+    except Exception as e:
+        st.error(f"SAS接続例外: {e}")
+    finally:
+        # 捕捉したすべてのデバッグログを表示
+        st.subheader("📋 SASPy 内部通信デバッグログ")
+        debug_output = log_stream.getvalue()
+        if debug_output:
+            st.code(debug_output, language="text")
+        else:
+            st.info("デバッグログは空でした。")
